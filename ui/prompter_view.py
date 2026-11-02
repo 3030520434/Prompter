@@ -17,7 +17,7 @@ class PrompterView(QWidget):
         super().__init__(parent)
         self._text = ""
         self._scroll_y = 0.0  # 滚动位置（浮点数，像素级）
-        self._font_size = 28
+        self._font_size = 20
         self._font_family = "Microsoft YaHei"
         self._text_color = QColor(255, 255, 255)
         self._bg_color = QColor(0, 0, 0)
@@ -69,7 +69,7 @@ class PrompterView(QWidget):
 
     def set_scroll_speed(self, speed: int):
         """设置滚动速度"""
-        self._scroll_speed = max(10, min(80, speed))
+        self._scroll_speed = max(5, min(80, speed))
 
     def play(self):
         """开始滚动"""
@@ -94,10 +94,10 @@ class PrompterView(QWidget):
         else:
             self.play()
 
-    def speed_up(self, step=10):
+    def speed_up(self, step=5):
         self.set_scroll_speed(self._scroll_speed + step)
 
-    def speed_down(self, step=10):
+    def speed_down(self, step=5):
         self.set_scroll_speed(self._scroll_speed - step)
 
     def scroll_up(self):
@@ -184,11 +184,11 @@ class PrompterView(QWidget):
         chars_per_line = max(1, (self.width() - self._padding * 2) // max(1, metrics.horizontalAdvance('中')))
 
         # 每秒移动的像素
-        pixels_per_second = (self._scroll_speed / 60) * chars_per_line * line_height / 20
+        pixels_per_second = (self._scroll_speed / 60) * chars_per_line * line_height / 60
         # 每帧移动的像素 (16ms一帧)
         pixels_per_frame = pixels_per_second * 0.016
 
-        self._scroll_y += max(0.5, pixels_per_frame)
+        self._scroll_y += max(0.1, pixels_per_frame)
         self.update()
 
     def mousePressEvent(self, event):

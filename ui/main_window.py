@@ -52,7 +52,6 @@ class MainWindow(QMainWindow):
         # 提词器显示
         self.prompter = PrompterView()
         self.prompter.clicked.connect(self._toggle_play)
-        self.prompter.double_clicked.connect(self._exit_mini_mode)
         layout.addWidget(self.prompter, 1)
 
         # 控制面板
@@ -102,7 +101,7 @@ class MainWindow(QMainWindow):
         self.lbl_speed = QLabel("40 字/分钟")
         speed_top.addWidget(self.lbl_speed)
         self.slider_speed = QSlider(Qt.Orientation.Horizontal)
-        self.slider_speed.setRange(10, 80)
+        self.slider_speed.setRange(5, 80)
         self.slider_speed.setValue(40)
         self.slider_speed.valueChanged.connect(self._on_speed_changed)
         speed_top.addWidget(self.slider_speed, 1)
@@ -122,7 +121,7 @@ class MainWindow(QMainWindow):
         font_layout.addWidget(QLabel("字号:"))
         self.spin_font = QSpinBox()
         self.spin_font.setRange(12, 72)
-        self.spin_font.setValue(28)
+        self.spin_font.setValue(20)
         self.spin_font.valueChanged.connect(self._on_font_changed)
         font_layout.addWidget(self.spin_font)
         font_layout.addWidget(QLabel("行距:"))
@@ -275,12 +274,6 @@ class MainWindow(QMainWindow):
             self._mini_mode = True
             self.control_panel.hide()
             self.menuBar().hide()
-            # 无边框窗口，只显示滚动区域
-            self.setWindowFlags(
-                Qt.WindowType.WindowStaysOnTopHint
-                | Qt.WindowType.FramelessWindowHint
-            )
-            self.show()
             self.resize(self.width(), 120)
             self.btn_mini_exit.move(self.width() - 30, 6)
             self.btn_mini_exit.show()
@@ -289,11 +282,6 @@ class MainWindow(QMainWindow):
             self._mini_mode = False
             self.control_panel.show()
             self.menuBar().show()
-            # 恢复有边框窗口
-            self.setWindowFlags(
-                Qt.WindowType.WindowStaysOnTopHint
-            )
-            self.show()
             self.resize(self.width(), 500)
             self.btn_mini_exit.hide()
 
@@ -350,20 +338,6 @@ class MainWindow(QMainWindow):
         if hasattr(self, 'btn_mini_exit') and self.btn_mini_exit.isVisible():
             self.btn_mini_exit.move(self.width() - 30, 6)
         super().resizeEvent(event)
-
-    def mousePressEvent(self, event):
-        # 无边框小窗模式下，支持拖动窗口
-        if event.button() == Qt.MouseButton.LeftButton:
-            if not self.control_panel.isVisible():
-                self._drag_pos = event.globalPosition().toPoint() - self.frameGeometry().topLeft()
-                event.accept()
-        super().mousePressEvent(event)
-
-    def mouseMoveEvent(self, event):
-        if not self.control_panel.isVisible() and event.buttons() == Qt.MouseButton.LeftButton:
-            self.move(event.globalPosition().toPoint() - self._drag_pos)
-            event.accept()
-        super().mouseMoveEvent(event)
 
     def closeEvent(self, event):
         self.prompter.stop()
