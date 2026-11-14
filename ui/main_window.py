@@ -3,6 +3,7 @@
 """
 import sys
 import os
+import json
 import ctypes
 from ctypes import wintypes
 
@@ -26,6 +27,9 @@ WDA_NONE = 0x00000000
 WDA_MONITOR = 0x00000001
 WDA_EXCLUDEFROMCAPTURE = 0x00000011  # Windows 10 1903+
 
+# 配置文件路径（保存上次打开的文件等设置）
+CONFIG_PATH = os.path.join(os.path.expanduser("~"), ".desktop_prompter.json")
+
 
 class MainWindow(QMainWindow):
     def __init__(self):
@@ -40,7 +44,7 @@ class MainWindow(QMainWindow):
 
         # 窗口置顶
         self.setWindowFlags(self.windowFlags() | Qt.WindowType.WindowStaysOnTopHint)
-        self._load_demo_text()
+        self._restore_last_file()
 
     def _setup_ui(self):
         central = QWidget()
@@ -175,7 +179,7 @@ class MainWindow(QMainWindow):
         # 防偷屏选项
         self.action_anti_capture = QAction("防偷屏(&A)", self)
         self.action_anti_capture.setCheckable(True)
-        self.action_anti_capture.setChecked(False)
+        self.action_anti_capture.setChecked(True)  # 默认开启防偷屏
         self.action_anti_capture.triggered.connect(self._toggle_anti_capture)
         self.action_anti_capture.setToolTip("开启后，屏幕共享/录屏软件无法捕获此窗口")
         view_menu.addAction(self.action_anti_capture)
@@ -197,8 +201,47 @@ class MainWindow(QMainWindow):
         QShortcut(QKeySequence("Escape"), self, self._exit_fullscreen)
 
     def _load_demo_text(self):
-        text = "欢迎使用桌面提词器\n\n这是一个简洁实用的桌面提词器工具，专为单屏幕共享场景设计。\n\n主要功能：\n1. 支持导入文本文件，自动适应窗口宽度换行\n2. 支持语速调节（20-500字/分钟）\n3. 支持字体大小、行距调节\n4. 支持窗口置顶，共享屏幕时不被遮挡\n5. 支持小窗模式，只显示滚动区域\n\n快捷键说明：\n- 空格键：播放/暂停\n- 上下箭头：手动滚动\n- +/-：加速/减速\n- F11：全屏切换\n- Ctrl+M：小窗模式切换\n- Ctrl+O：打开文件\n- Ctrl+E：编辑文本\n\n使用说明：\n1. 点击打开按钮导入文本文件，或点击编辑按钮直接输入文本\n2. 点击播放按钮开始滚动，文本会自动适应窗口宽度\n3. 使用滑块调节滚动速度\n4. 按Ctrl+M切换到小窗模式\n\n文本会根据窗口大小自动换行，您可以自由调整窗口大小。\n\n祝您使用愉快！"
+        text = "欢迎使用桌面提词器\n\n这是一个简洁实用的桌面提词器工具，专为单屏幕共享场景设计。\n\n主要功能：\n1. 支持导入文本文件，自动适应窗口宽度换行\n2. 支持语速调节（20-500字/分钟）\n3. 支持字体大小、行距调节\n4. 支持窗口置顶，共享屏幕时不被遮挡\n5. 支持小窗模式，只显示滚动区域\n6. 启动时自动加载上次打开的文本文件\n\n快捷键说明：\n- 空格键：播放/暂停\n- 上下箭头：手动滚动\n- +/-：加速/减速\n- F11：全屏切换\n- Ctrl+M：小窗模式切换\n- Ctrl+O：打开文件\n- Ctrl+E：编辑文本\n\n使用说明：\n1. 点击打开按钮导入文本文件，或点击编辑按钮直接输入文本\n2. 点击播放按钮开始滚动，文本会自动适应窗口宽度\n3. 使用滑块调节滚动速度\n4. 按Ctrl+M切换到小窗模式\n\n文本会根据窗口大小自动换行，您可以自由调整窗口大小。\n\n祝您使用愉快！"
         self.prompter.set_text(text)
+
+    def _restore_last_file(self):
+        """启动时恢复上次打开的文件，文件不存在则显示示例文本"""
+        config = self._load_config()
+        last_file = config.get("last_file", "")
+        if last_file and os.path.isfile(last_file):
+            text = self._read_text_file(last_file)
+            if text is not None:
+                self.prompter.set_text(text)
+                return
+        self._load_demo_text()
+
+    def _read_text_file(self, path):
+        """读取文本文件内容（依次尝试 utf-8 / gbk），失败返回 None"""
+        for encoding in ("utf-8", "gbk"):
+            try:
+                with open(path, "r", encoding=encoding) as f:
+                    return f.read()
+            except UnicodeDecodeError:
+                continue
+            except Exception:
+                return None
+        return None
+
+    def _load_config(self):
+        """读取配置文件"""
+        try:
+            with open(CONFIG_PATH, "r", encoding="utf-8") as f:
+                return json.load(f)
+        except Exception:
+            return {}
+
+    def _save_config(self, config):
+        """保存配置文件"""
+        try:
+            with open(CONFIG_PATH, "w", encoding="utf-8") as f:
+                json.dump(config, f, ensure_ascii=False, indent=2)
+        except Exception:
+            pass
 
     def _toggle_play(self):
         self.prompter.toggle_play_pause()
@@ -227,12 +270,15 @@ class MainWindow(QMainWindow):
     def _open_file(self):
         path, _ = QFileDialog.getOpenFileName(self, "打开文本文件", "", "文本文件 (*.txt);;所有文件 (*)")
         if path:
-            try:
-                with open(path, 'r', encoding='utf-8') as f:
-                    text = f.read()
-                self.prompter.set_text(text)
-            except Exception as e:
-                QMessageBox.warning(self, "错误", f"无法打开文件:\n{e}")
+            text = self._read_text_file(path)
+            if text is None:
+                QMessageBox.warning(self, "错误", f"无法打开文件:\n{path}")
+                return
+            self.prompter.set_text(text)
+            # 记住上次打开的文件，下次启动时自动加载
+            config = self._load_config()
+            config["last_file"] = path
+            self._save_config(config)
 
     def _save_file(self):
         path, _ = QFileDialog.getSaveFileName(self, "保存文本文件", "", "文本文件 (*.txt)")
@@ -297,6 +343,8 @@ class MainWindow(QMainWindow):
             flags &= ~Qt.WindowType.WindowStaysOnTopHint
         self.setWindowFlags(flags)
         self.show()
+        # setWindowFlags 会重建原生窗口，需重新应用防偷屏
+        self._apply_anti_capture()
 
     def _toggle_anti_capture(self, checked):
         """开启/关闭防偷屏 - 屏幕共享时窗口不可见"""
@@ -313,6 +361,16 @@ class MainWindow(QMainWindow):
                 user32.SetWindowDisplayAffinity(hwnd, WDA_NONE)
         except Exception as e:
             QMessageBox.warning(self, "错误", f"设置防偷屏失败:\n{e}")
+
+    def showEvent(self, event):
+        """窗口显示时应用防偷屏设置"""
+        super().showEvent(event)
+        self._apply_anti_capture()
+
+    def _apply_anti_capture(self):
+        """按菜单选中状态确保防偷屏已应用（原生窗口重建后需重新调用）"""
+        if self.action_anti_capture.isChecked():
+            self._toggle_anti_capture(True)
 
     def _set_theme(self, name):
         themes = {
